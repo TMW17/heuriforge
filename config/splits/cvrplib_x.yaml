@@ -1,0 +1,81 @@
+# CVRPLIB set X instances with 100-330 customers (Uchoa et al., 2017), with their
+# best-known solutions, downloaded from github.com/PyVRP/Instances (distances rounded to
+# the nearest integer, the convention the best-known solutions use).
+#
+# How the 50 instances were split: sorted by average route length (customers per route,
+# the property that most changes how a routing heuristic behaves), cut into 10 groups of 5,
+# and each group dealt out as train / test / train / val / test (rotated from group to
+# group). So every split covers short and long routes, and small and large instances.
+#
+# THE TEST SPLIT IS SEALED: it is never used during evolution. Commit this file before
+# your final runs, and evaluate the test split once per run (`heuriforge test`).
+#
+# Names starting with "S-" are small synthetic instances HeuriForge generates itself
+# (S-n21-s101 = 21 locations including the depot, random seed 101).
+
+dataset: cvrplib_x
+
+# Tiny problems for the smoke test (each candidate runs on them twice, in under a second)
+smoke:
+  - S-n21-s101
+  - S-n21-s102
+  - S-n26-s103
+
+# Scores every candidate during evolution
+train:
+  - X-n101-k25   #  4.0 customers per route
+  - X-n115-k10   # 11.4 customers per route
+  - X-n153-k22   #  6.9 customers per route
+  - X-n157-k13   # 12.0 customers per route
+  - X-n162-k11   # 14.6 customers per route
+  - X-n172-k51   #  3.4 customers per route
+  - X-n181-k23   #  7.8 customers per route
+  - X-n190-k8    # 23.6 customers per route
+  - X-n200-k36   #  5.5 customers per route
+  - X-n204-k19   # 10.7 customers per route
+  - X-n214-k11   # 19.4 customers per route
+  - X-n247-k50   #  4.9 customers per route
+  - X-n270-k35   #  7.7 customers per route
+  - X-n275-k28   #  9.8 customers per route
+  - X-n280-k17   # 16.4 customers per route
+  - X-n284-k15   # 18.9 customers per route
+  - X-n294-k50   #  5.9 customers per route
+  - X-n303-k21   # 14.4 customers per route
+  - X-n308-k13   # 23.6 customers per route
+  - X-n313-k71   #  4.4 customers per route
+
+# Picks the champion (only island bests are scored on it)
+val:
+  - X-n106-k14   #  7.5 customers per route
+  - X-n120-k6    # 19.8 customers per route
+  - X-n186-k15   # 12.3 customers per route
+  - X-n195-k51   #  3.8 customers per route
+  - X-n223-k34   #  6.5 customers per route
+  - X-n228-k23   #  9.9 customers per route
+  - X-n233-k16   # 14.5 customers per route
+  - X-n266-k58   #  4.6 customers per route
+  - X-n298-k31   #  9.6 customers per route
+  - X-n331-k15   # 22.0 customers per route
+
+# Sealed: used once, at the end
+test:
+  - X-n110-k13   #  8.4 customers per route
+  - X-n125-k30   #  4.1 customers per route
+  - X-n129-k18   #  7.1 customers per route
+  - X-n134-k13   # 10.2 customers per route
+  - X-n139-k10   # 13.8 customers per route
+  - X-n143-k7    # 20.3 customers per route
+  - X-n148-k46   #  3.2 customers per route
+  - X-n167-k10   # 16.6 customers per route
+  - X-n176-k26   #  6.7 customers per route
+  - X-n209-k16   # 13.0 customers per route
+  - X-n219-k73   #  3.0 customers per route
+  - X-n237-k14   # 16.9 customers per route
+  - X-n242-k48   #  5.0 customers per route
+  - X-n251-k28   #  8.9 customers per route
+  - X-n256-k16   # 15.9 customers per route
+  - X-n261-k13   # 20.0 customers per route
+  - X-n289-k60   #  4.8 customers per route
+  - X-n317-k53   #  6.0 customers per route
+  - X-n322-k28   # 11.5 customers per route
+  - X-n327-k20   # 16.3 customers per route

@@ -1,0 +1,50 @@
+[project]
+name = "heuriforge"
+version = "0.1.0"
+description = "LLM-guided evolutionary discovery of vehicle-routing heuristics with small local models."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.13",
+    "pyvrp>=0.14,<0.15",        # 0.14 replaced the genetic algorithm with iterated local search
+    "vrplib>=2.0",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "plotly>=5.24",
+]
+
+[project.optional-dependencies]
+# Experiment tracking with a local MLflow store (mlruns/). Optional, so CI stays small.
+tracking = ["mlflow>=2.16"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.6", "pre-commit>=3.7"]
+
+[project.scripts]
+heuriforge = "heuriforge.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/heuriforge"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["slow: end-to-end tests that run a small evolution"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Generated programs are kept exactly as they were evaluated: never lint or reformat them.
+extend-exclude = ["runs", "results", "data", "site", "site-demo", "bench"]
+force-exclude = true  # also when pre-commit passes those files explicitly
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]

@@ -1,0 +1,48 @@
+# Small synthetic instances for the offline demo, tests and CI. HeuriForge generates
+# them itself (no download): S-n41-s1 = 41 locations including the depot, random seed 1.
+# Their "best-known" costs are reference solutions from long PyVRP runs.
+
+dataset: synthetic
+
+# Tiny problems for the under-a-second smoke test
+smoke:
+  - S-n21-s101
+  - S-n21-s102
+  - S-n26-s103
+
+# Used during evolution
+train:
+  - S-n41-s1
+  - S-n46-s2
+  - S-n51-s3
+  - S-n56-s4
+  - S-n61-s5
+  - S-n66-s6
+  - S-n41-s7
+  - S-n46-s8
+  - S-n51-s9
+  - S-n56-s10
+  - S-n61-s11
+  - S-n66-s12
+
+# Used only to confirm new champions
+val:
+  - S-n44-s21
+  - S-n49-s22
+  - S-n54-s23
+  - S-n59-s24
+  - S-n64-s25
+  - S-n69-s26
+
+# Sealed: used once, at the end
+test:
+  - S-n43-s31
+  - S-n48-s32
+  - S-n53-s33
+  - S-n58-s34
+  - S-n63-s35
+  - S-n68-s36
+  - S-n43-s37
+  - S-n48-s38
+  - S-n53-s39
+  - S-n58-s40

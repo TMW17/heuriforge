@@ -1,0 +1,71 @@
+# HeuriForge settings. Paths are relative to the repository root.
+# Change values here, or copy this file and pass it with --settings.
+
+paths:
+  data: data/instances        # benchmark instances (one folder per dataset)
+  runs: runs                  # one folder per evolution run (program database, logs)
+  site: site                  # static results website (GitHub Pages)
+  bench: bench                # inference benchmark results
+
+llm:
+  # "server": a local llama.cpp llama-server (OpenAI-compatible API).
+  # "random": no language model at all: random code mutations. This is the
+  #           "evolution without an LLM" baseline that isolates what the model adds.
+  provider: server
+  models:
+    # One entry per llama-server. Requests only ever go to localhost.
+    - name: qwen3.5-4b
+      base_url: http://127.0.0.1:8080/v1
+      model: unsloth/Qwen3.5-4B-GGUF:Q4_K_M   # sent in requests; ignored by a single-model server
+      cost: 1.0                                # relative cost per call, used by the bandit
+    # Cascade example: start a second server with the 2B model on port 8081 and uncomment.
+    # - name: qwen3.5-2b
+    #   base_url: http://127.0.0.1:8081/v1
+    #   model: unsloth/Qwen3.5-2B-GGUF:Q4_K_M
+    #   cost: 0.5
+  mutations: [diff, rewrite]  # "diff": small search/replace edits; "rewrite": whole code block
+  thinking: false             # Qwen3.5 "thinks" by default; off keeps answers short and fast
+  temperature: 0.7
+  top_p: 0.8
+  top_k: 20
+  min_p: 0.0
+  presence_penalty: 0.0       # >0 penalises repeated tokens, which hurts code
+  max_tokens: 1500
+  timeout_s: 600
+  retries: 2
+
+evolution:
+  islands: 2                  # independent sub-populations
+  migration_interval: 40      # copy each island's best to the next island every N candidates
+  complexity_bins: [40, 80, 160]   # MAP-Elites axis 1: AST nodes in the code block
+  params_bins: [2, 3, 4]           # MAP-Elites axis 2: how many inputs the function uses
+  exploit_prob: 0.3           # chance of mutating the island's best instead of sampling
+  selection_lambda: 10.0      # sharpness of fitness-weighted parent sampling
+  inspirations: 2             # other good programs shown in each prompt
+  max_param_variants: 6       # max programs sharing one structure (constants-only edits)
+  reflection_interval: 25     # write a lesson every N candidates (0 = off)
+  max_lessons_in_prompt: 3
+
+run:
+  max_candidates: 500         # candidates per run (every proposal counts, even failed ones)
+  max_hours: 10.0             # time limit for one session (a resumed run gets a new one)
+  parallel: 2                 # candidates in flight (overlaps generation and evaluation)
+  seed: 0
+
+eval:
+  workers: 4                  # sandbox processes running at the same time
+  memory_mb: 2048             # per sandbox process (Linux: hard limit; macOS: memory watchdog)
+
+tracking:
+  mlflow: false               # log runs to a local MLflow store (install with: uv sync --extra tracking)
+
+tasks:
+  cvrp_construct:
+    per_instance_cpu_s: 10    # time limit for building one solution
+  pyvrp_accept:
+    iterations: 1000          # iterated-local-search iterations per instance (fixed budget)
+    smoke_iterations: 200     # shorter runs for the smoke test
+    train_seeds: [1]
+    val_seeds: [2]
+    test_seeds: [11, 12, 13, 14, 15]
+    per_instance_cpu_s: 60
