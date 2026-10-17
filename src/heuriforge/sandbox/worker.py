@@ -76,14 +76,30 @@ def set_limits(cpu_seconds: float, memory_mb: int) -> None:
         resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
 
+def peak_memory() -> int:
+    """Peak resident memory of this process, in bytes."""
+    unit = 1 if sys.platform == "darwin" else 1024  # ru_maxrss is bytes on macOS, KiB on Linux
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * unit
+
+
+def timeout_or_memory(memory_mb: int, message: str) -> dict:
+    """A CPU timeout, unless the program also went over the memory limit.
+
+    Filling a huge array runs in C without releasing the interpreter, so the memory
+    watchdog cannot report it before the allocation ends; on a slow machine the CPU timer
+    may fire first. Memory is the real cause then.
+    """
+    if peak_memory() > memory_mb * 2**20:
+        return {"error_type": "memory_limit", "error": f"used more than {memory_mb} MB of memory"}
+    return {"error_type": "timeout", "error": message}
+
+
 def watch_memory(memory_mb: int) -> None:
     """Peak-memory watchdog (macOS has no working address-space limit)."""
-    unit = 1 if sys.platform == "darwin" else 1024  # ru_maxrss is bytes on macOS, KiB on Linux
 
     def loop():
         while True:
-            peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * unit
-            if peak > memory_mb * 2**20:
+            if peak_memory() > memory_mb * 2**20:
                 emit(
                     {
                         "ok": False,
@@ -153,8 +169,9 @@ def run_job(job: dict) -> dict:
     except Exception as exc:  # trusted code failed: not the candidate's fault
         return {"ok": False, "error_type": "setup_error", "error": repr(exc), "items": []}
 
-    set_limits(limit * (len(items) * repeat + 1) + 5, int(job.get("memory_mb", 2048)))
-    watch_memory(int(job.get("memory_mb", 2048)))
+    memory_mb = int(job.get("memory_mb", 2048))
+    set_limits(limit * (len(items) * repeat + 1) + 5, memory_mb)
+    watch_memory(memory_mb)
     signal.signal(signal.SIGPROF, _on_timer)
 
     try:
@@ -163,8 +180,7 @@ def run_job(job: dict) -> dict:
     except ItemTimeout:
         return {
             "ok": False,
-            "error_type": "timeout",
-            "error": "the program took too long to load",
+            **timeout_or_memory(memory_mb, "the program took too long to load"),
             "items": [],
         }
     except BaseException as exc:
@@ -185,10 +201,9 @@ def run_job(job: dict) -> dict:
                     out = task.run(fn, prep, it["seed"], options)
                 outs.append(out)
             except ItemTimeout:
-                res = {
-                    "error_type": "timeout",
-                    "error": f"took more than {limit:g} s of CPU time on {it['key']}",
-                }
+                res = timeout_or_memory(
+                    memory_mb, f"took more than {limit:g} s of CPU time on {it['key']}"
+                )
             except InvalidOutput as exc:
                 res = {"error_type": "invalid_output", "error": str(exc)}
             except ModifiedInput as exc:

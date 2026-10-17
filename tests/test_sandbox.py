@@ -135,3 +135,12 @@ def test_routes_are_checked_by_the_parent(settings, monkeypatch):
     monkeypatch.setattr(runner.Sandbox, "run", fake_run)
     result = evaluate(settings, TASK.initial_block)
     assert not result.ok and result.error_type == "invalid_output"
+
+
+def test_a_timeout_after_a_memory_overrun_is_reported_as_memory():
+    # Seen on GitHub's macOS runner: filling a 2.4 GB array took longer than the CPU limit,
+    # so the timer fired before the memory watchdog could report it.
+    from heuriforge.sandbox.worker import timeout_or_memory
+
+    assert timeout_or_memory(0, "slow")["error_type"] == "memory_limit"
+    assert timeout_or_memory(10**6, "slow") == {"error_type": "timeout", "error": "slow"}
