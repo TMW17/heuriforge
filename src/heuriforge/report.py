@@ -20,7 +20,6 @@ from plotly.offline import get_plotlyjs_version
 from heuriforge.bandit import Bandit
 from heuriforge.database import STATUSES, Database, Program
 from heuriforge.engine import champion, run_summary
-from heuriforge.stats import compare
 
 STATUS_LABELS = {
     "llm_error": "model call failed",
@@ -402,40 +401,65 @@ def run_section(run: RunData) -> str:
 
 
 def cross_run_html(runs: list[RunData]) -> str:
+    from heuriforge.results import SealedRun, format_spread, pool
+
     labels = "; ".join(f"<code>{esc(r.name)}</code>: {esc(r.model_label)}" for r in runs)
     out = [comparison_figure(runs), f'<p class="muted">{labels}.</p>']
-    tested = [r for r in runs if r.sealed and "champion" in r.sealed["per_item"]]
-    rows = []
-    for i, a in enumerate(tested):
-        for b in tested[i + 1 :]:
-            pa, pb = a.sealed["per_item"]["champion"], b.sealed["per_item"]["champion"]
-            keys = [k for k in pa if k in pb]
-            if not keys:
-                continue
-            c = compare([pa[k] for k in keys], [pb[k] for k in keys])
-            rows.append(
-                [
-                    f"{esc(a.name)} vs {esc(b.name)}",
-                    f"{c['mean_diff']:+.2f} pts [{c['ci_low']:+.2f}, {c['ci_high']:+.2f}]",
-                    f"{c['p_value']:.3g}",
-                    f"{c['a12']:.2f} ({c['effect']})",
-                    f"{c['wins']} / {c['losses']} / {c['ties']}",
-                ]
-            )
-    if rows:
-        out.append("<h4>Champions compared on the sealed test</h4>")
+    tested = [
+        SealedRun(
+            name=r.name,
+            task=r.task,
+            kind="random" if r.provider == "random" else "llm",
+            seed=int((r.settings.get("run") or {}).get("seed", 0)),
+            report=r.sealed,
+        )
+        for r in runs
+        if r.sealed
+    ]
+    p = pool(tested, runs[0].task) if tested else None
+    if p is None:
+        return "\n".join(out)
+    if p.llm and p.base and p.comparison:
+        c = p.comparison
+        out.append("<h4>With the model vs without, on the sealed test</h4>")
         out.append(
             table(
                 [
-                    "comparison",
-                    "mean gap difference [95% CI]",
+                    "without the model",
+                    "with the model",
+                    "difference per test item [95% CI]",
                     "p (Wilcoxon)",
                     "A12 (effect)",
                     "wins / losses / ties",
                 ],
-                rows,
+                [
+                    [
+                        format_spread(p.base),
+                        format_spread(p.llm),
+                        f"{c['mean_diff']:+.2f} pts [{c['ci_low']:+.2f}, {c['ci_high']:+.2f}]",
+                        f"{c['p_value']:.3g}",
+                        f"{c['a12']:.2f} ({c['effect']})",
+                        f"{c['wins']} / {c['losses']} / {c['ties']}",
+                    ]
+                ],
             )
         )
+        out.append(
+            '<p class="muted">Mean test gap of the champions ± standard deviation over '
+            f"independent runs. The difference compares, on each of the {p.items} test items, "
+            "the gaps averaged over the runs of each kind (negative: the model side is better).</p>"
+        )
+    rows = [
+        [
+            esc(r.name),
+            r.seed,
+            pct(r.mean_gap) if r.mean_gap is not None else "failed",
+            pct(r.report.get("champion", {}).get("val_gap")),
+        ]
+        for r in tested
+    ]
+    out.append("<h4>Every run's champion on the sealed test</h4>")
+    out.append(table(["run", "seed", "test gap", "its validation gap"], rows))
     return "\n".join(out)
 
 

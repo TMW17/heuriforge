@@ -2,6 +2,7 @@
 # Variables you can override on the command line, for example:
 #   make server MODEL=unsloth/Qwen3.5-2B-GGUF:Q4_K_M PORT=8081
 #   make construct-llm RESUME=1
+#   make construct-llm SEED=1        (a repeated run: folder runs/construct-llm-s1)
 #   make status RUN=construct-llm
 
 SHELL := /bin/bash
@@ -14,13 +15,19 @@ CTX ?= 16384
 SERVER_FLAGS ?=
 RUN ?= construct-llm
 RESUME ?=
+SEED ?= 0
 
 # Keep the Mac awake during long runs (no-op on Linux).
 CAFFEINATE := $(shell command -v caffeinate >/dev/null 2>&1 && echo caffeinate -is)
-RESUME_FLAG := $(if $(RESUME),--resume,)
+# Repeated runs: SEED=1, SEED=2, ... add -s1, -s2, ... to the run name (seed 0 keeps the plain name).
+SUFFIX := $(if $(filter 0,$(SEED)),,-s$(SEED))
+# --resume when asked (RESUME=1), or, with RESUME=auto, when the run folder already exists.
+resume_flag = $(if $(filter auto,$(RESUME)),$(if $(wildcard runs/$(1)/programs.sqlite),--resume,),$(if $(RESUME),--resume,))
+evolve = $(CAFFEINATE) uv run heuriforge evolve --task $(1) --name $(2)$(SUFFIX) --seed $(SEED) $(3) $(call resume_flag,$(2)$(SUFFIX))
 
 .PHONY: help setup server bench data demo eval construct-llm construct-random accept-llm \
-	accept-random status sealed-test report export table test lint clean
+	accept-random repeats-llm repeats-random status sealed-test sealed-tests report export \
+	export-all table test lint clean
 
 help: ## list the commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -46,17 +53,29 @@ eval: ## score both initial programs (a sanity check, about a minute)
 	uv run heuriforge eval --task cvrp_construct
 	uv run heuriforge eval --task pyvrp_accept
 
-construct-llm: ## Task 1 with the language model (add RESUME=1 to continue)
-	$(CAFFEINATE) uv run heuriforge evolve --task cvrp_construct --name construct-llm $(RESUME_FLAG)
+construct-llm: ## Task 1 with the language model (RESUME=1 continues, SEED=1 is a repeat)
+	$(call evolve,cvrp_construct,construct-llm,)
 
 construct-random: ## Task 1 without a language model (the baseline)
-	$(CAFFEINATE) uv run heuriforge evolve --task cvrp_construct --name construct-random --provider random $(RESUME_FLAG)
+	$(call evolve,cvrp_construct,construct-random,--provider random)
 
-accept-llm: ## Task 2 with the language model (add RESUME=1 to continue)
-	$(CAFFEINATE) uv run heuriforge evolve --task pyvrp_accept --name accept-llm $(RESUME_FLAG)
+accept-llm: ## Task 2 with the language model (RESUME=1 continues, SEED=1 is a repeat)
+	$(call evolve,pyvrp_accept,accept-llm,)
 
 accept-random: ## Task 2 without a language model (the baseline)
-	$(CAFFEINATE) uv run heuriforge evolve --task pyvrp_accept --name accept-random --provider random $(RESUME_FLAG)
+	$(call evolve,pyvrp_accept,accept-random,--provider random)
+
+repeats-llm: ## seeds 1 and 2 of both model runs, one after the other (about 6 hours)
+	$(MAKE) construct-llm SEED=1 RESUME=auto
+	$(MAKE) accept-llm SEED=1 RESUME=auto
+	$(MAKE) construct-llm SEED=2 RESUME=auto
+	$(MAKE) accept-llm SEED=2 RESUME=auto
+
+repeats-random: ## seeds 1 and 2 of both no-model runs (no server needed, under an hour)
+	$(MAKE) construct-random SEED=1 RESUME=auto
+	$(MAKE) accept-random SEED=1 RESUME=auto
+	$(MAKE) construct-random SEED=2 RESUME=auto
+	$(MAKE) accept-random SEED=2 RESUME=auto
 
 status: ## progress of a run, also while it runs (RUN=construct-llm)
 	uv run heuriforge status --name $(RUN)
@@ -64,13 +83,19 @@ status: ## progress of a run, also while it runs (RUN=construct-llm)
 sealed-test: ## the sealed test of a finished run, once (RUN=construct-llm)
 	uv run heuriforge test --name $(RUN)
 
+sealed-tests: ## the sealed test of every finished run that has not had one yet
+	uv run heuriforge test --all
+
 report: ## build the results website in site/
 	uv run heuriforge report
 
 export: ## copy a run's result files to results/ for committing (RUN=construct-llm)
 	uv run heuriforge export --name $(RUN)
 
-table: ## print the README results table from the four sealed tests
+export-all: ## copy the result files of every run to results/
+	uv run heuriforge export --all
+
+table: ## print the README results table, pooled over the repeated runs
 	uv run heuriforge table
 
 test: ## run the test suite (about a minute)

@@ -15,21 +15,26 @@ capacitated vehicle routing problem (CVRP).
 What it is built to answer honestly: *how much does a small local model actually add to
 evolutionary program search?* So every result is measured the way a reviewer would ask
 for it: model-written code runs in a sandbox, an identical search **without** a language
-model is the baseline, the champion is chosen on a validation split, and it is scored
-once on a **sealed** test split, with paired statistics.
+model is the baseline, every configuration is run three times with different search
+seeds, the champion of each run is chosen on a validation split, and it is scored once on
+a **sealed** test split, with paired statistics.
 
 ## Results
 
-> **Pending.** The runs take a few hours each on a MacBook Pro (Apple Silicon, 16 GB).
-> This section is filled in from the sealed tests; the full report (charts, champion code,
-> lineage, audit) will be published on GitHub Pages.
+> **Pending.** Each of the four configurations is evolved three times (search seeds 0, 1
+> and 2) on a MacBook Pro (Apple Silicon, 16 GB); a run with the model takes one to two
+> hours. The test split stays sealed until all twelve runs are finished. This section is
+> then filled in from the sealed tests (`make table`), and the full report (charts,
+> champion code, lineage, audit) is published on GitHub Pages.
 
-| Task | Starting point | No-LLM baseline champion | LLM champion | LLM vs no-LLM |
+| Task | Starting point | No-LLM baseline | LLM | LLM vs no-LLM (per test item) |
 |---|---|---|---|---|
 | 1 · Constructive heuristic | – | – | – | – |
 | 2 · PyVRP acceptance rule | – | – | – | – |
 
-*Mean gap (%) to the best-known solutions on the 20 sealed test instances (Task 2: × 5 seeds).*
+*Mean gap (%) to the best-known solutions on the sealed test items (Task 1: 20 instances;
+Task 2: 20 instances × 5 seeds), as mean ± standard deviation over the three runs of each
+configuration.*
 
 Reference points measured with this repository (training / validation instances):
 
@@ -93,6 +98,12 @@ flowchart LR
   of the prompt sits in the system message, where llama.cpp checkpoints the state of this
   hybrid model, so it can be reused from one candidate to the next instead of being
   recomputed. Requests can only go to localhost.
+- **The no-model baseline.** The same search, with the language model replaced by random
+  code mutations: change a constant, add a term from a short hand-written list, swap an
+  operator, or drop a line. The list carries domain knowledge (for example the savings
+  term `dist[current, depot] - dist[candidates, depot]` in Task 1, or a
+  simulated-annealing test in Task 2), so this is a strong baseline, not blind random
+  search. Both searches get the same number of candidates.
 - **Novelty.** Programs that differ only in names, comments or formatting are rejected
   before evaluation (canonical syntax-tree hash); variants that only change constants are
   capped, to push the search towards new ideas.
@@ -108,10 +119,13 @@ flowchart LR
   - The smoke test runs every candidate twice on the same input; different answers mean
     hidden state, and the candidate is rejected.
   - Every rejection has a category, counted per run: the **reward-hacking audit**.
-- **Statistics.** The champion is compared with the starting point and the baseline on the
+- **Statistics.** Each champion is compared with the starting point and the baseline on the
   same test items: Wilcoxon signed-rank test with Holm's correction, Vargha-Delaney A12
-  effect size, and a bootstrap 95% confidence interval of the mean gap difference. The
-  sealed test refuses to run twice unless forced, and a forced re-run is recorded.
+  effect size, and a bootstrap 95% confidence interval of the mean gap difference. To
+  compare the model with the no-model baseline, the champions' gaps are averaged over the
+  three runs of each configuration, item by item, and compared the same way; the spread
+  between runs is reported next to it. The sealed test refuses to run twice unless
+  forced, and a forced re-run is recorded.
 
 **Data.** The 50 CVRPLIB set X instances with 100-330 customers (Uchoa et al., 2017) with
 their best-known solutions, split 20 / 10 / 20 into train / validation / test, stratified
@@ -134,7 +148,10 @@ make data         # CVRPLIB X instances + synthetic ones
 make server       # terminal 2: local model server (first run downloads the model)
 make bench        # Phase 0: is the model fast and reliable enough?
 make construct-llm && make construct-random   # Task 1: with and without the model
-make sealed-test RUN=construct-llm && make sealed-test RUN=construct-random
+make accept-llm && make accept-random         # Task 2: with and without the model
+make repeats-llm  # seeds 1 and 2 of both model runs (and make repeats-random)
+make sealed-tests # the sealed test of every finished run, once
+make table        # the results table, pooled over the runs
 make report       # results website in site/
 ```
 
@@ -143,8 +160,9 @@ make report       # results website in site/
 | `make eval` | scores both starting programs (sanity check) |
 | `make status RUN=…` | progress of a run, also while it runs |
 | `make construct-llm RESUME=1` | continues a stopped run (Ctrl+C or a `STOP` file stop it safely) |
-| `make accept-llm`, `make accept-random` | Task 2 runs |
-| `make export RUN=…` | copies a run's champion and results to `results/` for committing |
+| `make construct-llm SEED=1` | a repeated run with another search seed (folder `runs/construct-llm-s1`) |
+| `make sealed-test RUN=…` | the sealed test of one run |
+| `make export-all` | copies every run's champion and results to `results/` for committing |
 | `uv run heuriforge --help` | every command and option |
 
 All settings (model server, search parameters, budgets, time limits) are in
@@ -173,8 +191,12 @@ tests/                          unit and end-to-end tests, sandbox-escape and ch
 
 - A 4B model writes weaker code than frontier models; the results describe what a small
   local model can do, not the ceiling of the method.
-- Each configuration is evolved once (one search seed). Differences between runs of the
-  search itself are not measured; repeated runs would make the comparison stronger.
+- Each configuration is evolved three times. That shows how much a result depends on the
+  run, but three runs are too few for a significance test at the level of runs: the
+  paired tests use the test instances as the sample, with the gaps averaged over runs.
+- The no-model baseline draws from hand-written building blocks (see above), so the
+  comparison measures what the model adds over a search that already has some domain
+  knowledge, not over blind random search.
 - Task 2 uses a fixed budget of 1,000 iterations; a rule tuned for short runs may not
   help long ones.
 - The sandbox is designed for code written by a model asked to write heuristics, not for

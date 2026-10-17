@@ -136,6 +136,11 @@ class Engine:
                 raise ValueError(
                     f"this run used provider {provider!r}; resume it with the same provider"
                 )
+            # A resumed run keeps its own search seed, whatever the command line says.
+            seed = ((self.db.get_meta("settings") or {}).get("run") or {}).get("seed")
+            if seed is not None and seed != self.settings.run.seed:
+                log.info("resuming with this run's own seed (%s)", seed)
+                self.settings.run.seed = seed
         else:
             self.db.set_meta("task", self.task.name)
             self.db.set_meta("dataset", self.dataset)

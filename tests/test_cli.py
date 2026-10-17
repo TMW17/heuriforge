@@ -78,6 +78,9 @@ def test_table_and_export(project, monkeypatch, capsys):
             (run / "sealed_test.json").write_text(json.dumps(report))
     main(["table"])
     out = capsys.readouterr().out
-    assert "| 1 · Constructive heuristic | 20.00% | 12.00% | 11.00% | -1.00 pts" in out
+    assert (
+        "| 1 · Constructive heuristic | 20.00% | 12.00% (1 run) | 11.00% (1 run) | -1.00 pts" in out
+    )
+    assert "| `construct-llm` | 0 | 11.00% |" in out
     main(["export", "--name", "construct-llm", "--out", str(project / "results")])
     assert (project / "results" / "construct-llm" / "sealed_test.json").exists()

@@ -1,15 +1,15 @@
 # HeuriForge: step-by-step guide (MacBook Pro, Apple Silicon)
 
 This guide takes you from the zip file to published results: tests, an offline demo, the
-local model server, the Phase 0 benchmark, four evolution runs, the sealed tests, the
-results website on GitHub Pages and the README table.
+local model server, the Phase 0 benchmark, four evolution runs and their two repeats with
+other seeds, the sealed tests, the results website on GitHub Pages and the README table.
 
 Every command goes in the **Terminal** app. Lines starting with `#` are comments; you do
 not type them. When a step says *expected*, compare with what you see before moving on.
 
-**Time.** About 30 minutes of your own time, plus 4 to 8 hours of runs that work alone
-(you can leave the Mac running overnight). The real durations depend on your Mac;
-step 7 measures them.
+**Time.** About 30 minutes of your own time, plus 10 to 12 hours of runs that work alone
+(leave the Mac running overnight). The real durations depend on your Mac; step 7
+measures them.
 
 ---
 
@@ -224,22 +224,40 @@ Each candidate takes longer here: PyVRP solves the 20 training instances for 1,0
 iterations each. Improvements are small (tenths of a percent); that is expected for a
 state-of-the-art solver.
 
-## 11. The sealed tests (once per run)
+## 11. Repeat every run with two other seeds
 
-Only when all four runs are finished:
+One run per configuration can be lucky or unlucky. Each of the four runs is repeated
+with search seeds 1 and 2, with the same code and settings; the runs of steps 9 and 10
+are seed 0. The model runs need the server, the others do not, so run both groups at the
+same time in two windows:
 
 ```bash
-make sealed-test RUN=construct-llm
-make sealed-test RUN=construct-random
-make sealed-test RUN=accept-llm
-make sealed-test RUN=accept-random
+make repeats-llm      # window 1 (server running): about 6 hours
 ```
 
-Each one scores the run's champion (chosen on validation) on the 20 test instances that
-evolution never saw (for Task 2, with 5 new seeds each), and compares it with the
-starting program, with paired statistics. Running it a second time is refused: the
-point of a sealed test is that you look at it once. (`--force` exists for a real bug
-fix; the re-run is then recorded and shown in the report.)
+```bash
+make repeats-random   # window 2: under an hour
+```
+
+The repeats are in `runs/construct-llm-s1`, `runs/accept-llm-s2`, and so on. Follow one
+with `make status RUN=construct-llm-s1`. If they stop (Ctrl+C, the Mac went to sleep),
+run the same command again: finished runs are skipped and an unfinished one continues.
+
+## 12. The sealed tests (once per run)
+
+Only when all twelve runs are finished (the server is not needed any more):
+
+```bash
+make sealed-tests
+```
+
+It scores the champion of every finished run (chosen on validation) on the 20 test
+instances that evolution never saw (for Task 2, with 5 new seeds each), and compares it
+with the starting program, with paired statistics. Runs that are not finished are
+skipped; a run that already had its sealed test is never tested again: the point of a
+sealed test is that you look at it once. (`make sealed-test RUN=<name>` tests a single
+run; `uv run heuriforge test --name <name> --force` exists for a real bug fix, and the
+re-run is then recorded and shown in the report.)
 
 How to read a line:
 
@@ -252,7 +270,7 @@ difference is very likely between 11.6 and 16.9 points, the result is very unlik
 be luck (p < 0.05), and the champion is better on a random test instance with
 probability 0.93. *(Example numbers, not results.)*
 
-## 12. The report and GitHub Pages
+## 13. The report and GitHub Pages
 
 ```bash
 make report
@@ -279,28 +297,28 @@ If the `gh api` command answers with a 409 error, Pages was already enabled: tha
 fine. After a minute or two the site is live at https://tmw17.github.io/heuriforge/.
 To update it later, run `make report` and the `cd site ... cd ..` block again.
 
-## 13. Fill in the README and commit the results
+## 14. Fill in the README and commit the results
 
 ```bash
 make table
 ```
 
-It prints the results table in Markdown, computed from the four sealed tests. Replace
-the table under **Results** in `README.md` with it (any text editor; for example
-`open -a TextEdit README.md`), and replace the "Pending" note with one sentence and the
-link to the website. Then save the champions and results in the repository:
+It prints the results table in Markdown, computed from the twelve sealed tests: for
+each task, the starting point, the no-model and the model champions (mean ± standard
+deviation over their three runs), and the comparison of the two, item by item; then one
+row per run. Replace the table under **Results** in `README.md` with it (any text
+editor; for example `open -a TextEdit README.md`), and replace the "Pending" note with
+one sentence and the link to the website. Then save the champions and results in the
+repository:
 
 ```bash
-make export RUN=construct-llm
-make export RUN=construct-random
-make export RUN=accept-llm
-make export RUN=accept-random
+make export-all
 git add README.md results
-git commit -m "Results: sealed tests of the four runs"
+git commit -m "Results: sealed tests of the twelve runs"
 git push
 ```
 
-## 14. If something goes wrong
+## 15. If something goes wrong
 
 | Symptom | Fix |
 |---|---|
@@ -315,7 +333,7 @@ git push
 | `ModuleNotFoundError: heuriforge` | The project is in an iCloud folder. Move it to `~/Projects`, delete `.venv`, run `make setup`. |
 | A commit fails after "files were modified by this hook" | The formatter fixed something. Run `git add -A` and the same `git commit` again. |
 
-## 15. Settings you may want to change
+## 16. Settings you may want to change
 
 All in `config/settings.yaml` (commented):
 

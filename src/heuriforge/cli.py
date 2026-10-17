@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import shutil
 import sys
@@ -122,6 +123,8 @@ def cmd_evolve(args, settings: Settings) -> None:
     setup_logging(args.verbose, path / "log.txt")
     if args.islands:
         settings.evolution.islands = args.islands
+    if args.seed is not None:
+        settings.run.seed = args.seed
     tracker = None
     if settings.tracking.mlflow:
         from heuriforge.tracking import MlflowTracker
@@ -194,7 +197,8 @@ def cmd_status(args, settings: Settings) -> None:
     s = run_summary(db)
     started = db.get_meta("started_at")
     programs = db.programs("origin IN ('llm', 'random')")
-    print(f"Run {path}: {s['task']} on {s['dataset']}, provider {s['provider']}")
+    seed = ((db.get_meta("settings") or {}).get("run") or {}).get("seed", 0)
+    print(f"Run {path}: {s['task']} on {s['dataset']}, provider {s['provider']}, seed {seed}")
     if started:
         print(f"Started {time.strftime('%Y-%m-%d %H:%M', time.localtime(started))}", end="")
         if programs:
@@ -239,12 +243,27 @@ def cmd_status(args, settings: Settings) -> None:
 def cmd_test(args, settings: Settings) -> None:
     from heuriforge.sealed_test import AlreadyTested, run_sealed_test
 
-    path = run_dir(settings, args.name)
-    try:
-        report = asyncio.run(run_sealed_test(settings, path, force=args.force))
-    except AlreadyTested as exc:
-        sys.exit(str(exc))
-    print_sealed(report)
+    if not args.all:
+        path = run_dir(settings, args.name)
+        try:
+            report = asyncio.run(run_sealed_test(settings, path, force=args.force))
+        except AlreadyTested as exc:
+            sys.exit(str(exc))
+        print_sealed(report)
+        return
+    # Every finished run that has not had its sealed test yet; the others are left alone.
+    for path in finished_dirs(settings):
+        summary = path / "summary.json"
+        reason = json.loads(summary.read_text()).get("stop_reason", "") if summary.exists() else ""
+        if not reason.startswith("reached max_candidates"):
+            print(f"\n{path.name}: not finished ({reason or 'still running?'}), skipped")
+            continue
+        try:
+            report = asyncio.run(run_sealed_test(settings, path))
+        except AlreadyTested:
+            print(f"\n{path.name}: sealed test already done, skipped")
+            continue
+        print_sealed(report)
 
 
 def print_sealed(report: dict) -> None:
@@ -264,14 +283,7 @@ def print_sealed(report: dict) -> None:
 def cmd_report(args, settings: Settings) -> None:
     from heuriforge.report import build_site
 
-    if args.name:
-        dirs = [run_dir(settings, n) for n in args.name]
-    else:
-        dirs = sorted(
-            p
-            for p in settings.paths.runs.glob("*")
-            if (p / "programs.sqlite").exists() and not p.name.startswith("demo-")
-        )
+    dirs = [run_dir(settings, n) for n in args.name] if args.name else finished_dirs(settings)
     out = Path(args.out) if args.out else settings.paths.site
     target = build_site(dirs, out, title=args.title, offline=args.offline)
     print(f"Report written to {target}")
@@ -279,47 +291,38 @@ def cmd_report(args, settings: Settings) -> None:
 
 def cmd_export(args, settings: Settings) -> None:
     """Copy a run's small result files into results/<run>/, ready to commit."""
-    path = run_dir(settings, args.name)
-    out = Path(args.out) / path.name
-    out.mkdir(parents=True, exist_ok=True)
-    copied = []
-    for name in ("best_program.py", "summary.json", "sealed_test.json", "run.yaml"):
-        if (path / name).exists():
-            shutil.copy2(path / name, out / name)
-            copied.append(name)
-    print(f"Copied {', '.join(copied)} to {out}")
+    paths = finished_dirs(settings) if args.all else [run_dir(settings, args.name)]
+    for path in paths:
+        out = Path(args.out) / path.name
+        out.mkdir(parents=True, exist_ok=True)
+        copied = []
+        for name in ("best_program.py", "summary.json", "sealed_test.json", "run.yaml"):
+            if (path / name).exists():
+                shutil.copy2(path / name, out / name)
+                copied.append(name)
+        print(f"Copied {', '.join(copied)} to {out}")
 
 
 def cmd_table(args, settings: Settings) -> None:
-    """Print the README results table from the sealed tests of the four standard runs."""
-    import json
+    """Print the README results table from the sealed tests, pooled over repeated runs."""
+    from heuriforge.results import load_tested_runs, markdown_table
 
-    from heuriforge.stats import compare
-
-    rows = [
-        ("1 · Constructive heuristic", "construct-llm", "construct-random"),
-        ("2 · PyVRP acceptance rule", "accept-llm", "accept-random"),
+    folder = Path(args.source) if args.source else settings.paths.runs
+    dirs = [
+        p
+        for p in folder.glob("*")
+        if (p / "sealed_test.json").exists() and not p.name.startswith("demo-")
     ]
-    print("| Task | Starting point | No-LLM baseline champion | LLM champion | LLM vs no-LLM |")
-    print("|---|---|---|---|---|")
-    for title, llm_run, base_run in rows:
-        files = [settings.paths.runs / r / "sealed_test.json" for r in (llm_run, base_run)]
-        if not all(f.exists() for f in files):
-            missing = ", ".join(f.parent.name for f in files if not f.exists())
-            print(f"| {title} | – | – | – | (no sealed test yet for: {missing}) |")
-            continue
-        llm, base = (json.loads(f.read_text()) for f in files)
-        a, b = llm["per_item"]["champion"], base["per_item"]["champion"]
-        keys = [k for k in a if k in b]
-        c = compare([a[k] for k in keys], [b[k] for k in keys])
-        verdict = (
-            f"{c['mean_diff']:+.2f} pts [{c['ci_low']:+.2f}, {c['ci_high']:+.2f}], "
-            f"p = {c['p_value']:.2g}, A12 = {c['a12']:.2f}"
-        )
-        print(
-            f"| {title} | {llm['mean_gap']['initial']:.2f}% | {base['mean_gap']['champion']:.2f}% "
-            f"| {llm['mean_gap']['champion']:.2f}% | {verdict} |"
-        )
+    print(markdown_table(load_tested_runs(dirs)))
+
+
+def finished_dirs(settings: Settings) -> list[Path]:
+    """Every run folder except the offline demo's."""
+    return sorted(
+        p
+        for p in settings.paths.runs.glob("*")
+        if (p / "programs.sqlite").exists() and not p.name.startswith("demo-")
+    )
 
 
 def cmd_bench(args, settings: Settings) -> None:
@@ -400,6 +403,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--max-candidates", type=int)
     s.add_argument("--max-hours", type=float)
     s.add_argument("--islands", type=int)
+    s.add_argument(
+        "--seed",
+        type=int,
+        help="search seed (default: run.seed in the settings); repeated runs use different seeds",
+    )
     s.add_argument("--resume", action="store_true", help="continue an existing run")
     s.set_defaults(func=cmd_evolve)
 
@@ -410,7 +418,11 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser(
         "test", help="the sealed test: score a run's champion on the test split, once"
     )
-    s.add_argument("--name", required=True)
+    which = s.add_mutually_exclusive_group(required=True)
+    which.add_argument("--name")
+    which.add_argument(
+        "--all", action="store_true", help="every finished run without a sealed test yet"
+    )
     s.add_argument(
         "--force", action="store_true", help="run again although it already ran (recorded)"
     )
@@ -426,11 +438,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_report)
 
     s = sub.add_parser("export", help="copy a run's result files to results/<run>/ (to commit)")
-    s.add_argument("--name", required=True)
+    which = s.add_mutually_exclusive_group(required=True)
+    which.add_argument("--name")
+    which.add_argument("--all", action="store_true", help="every run except the demo's")
     s.add_argument("--out", default="results")
     s.set_defaults(func=cmd_export)
 
     s = sub.add_parser("table", help="print the README results table from the sealed tests")
+    s.add_argument(
+        "--from",
+        dest="source",
+        help="folder of runs (default: runs/; results/ reads the exported runs)",
+    )
     s.set_defaults(func=cmd_table)
 
     s = sub.add_parser("bench", help="Phase 0: measure the local model server")
