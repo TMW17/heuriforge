@@ -1,0 +1,29 @@
+{
+  "task": "cvrp_construct",
+  "dataset": "cvrplib_x",
+  "provider": "random",
+  "candidates": 500,
+  "statuses": {
+    "evaluated": 322,
+    "failed_smoke": 27,
+    "rejected_duplicate": 151
+  },
+  "errors": {
+    "duplicate": 46,
+    "invalid_output": 2,
+    "runtime_error": 25,
+    "too_many_variants": 105
+  },
+  "initial_train_gap": 31.53377624207758,
+  "initial_val_gap": 29.694871006558337,
+  "best_train_gap": 21.391294312595594,
+  "champion_id": 112,
+  "champion_train_gap": 22.202882513705433,
+  "champion_val_gap": 22.169280205592408,
+  "llm_seconds": 0,
+  "eval_seconds": 300.4,
+  "tokens": 0,
+  "prompt_cache_hit_rate": null,
+  "lessons": 0,
+  "stop_reason": "reached max_candidates (500)"
+}

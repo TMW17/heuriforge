@@ -1,0 +1,70 @@
+task: cvrp_construct
+dataset: cvrplib_x
+provider: random
+heuriforge: 0.1.0
+python: 3.12.15
+machine: Darwin arm64
+settings:
+  llm:
+    provider: server
+    models:
+    - name: qwen3.5-4b
+      base_url: http://127.0.0.1:8080/v1
+      model: unsloth/Qwen3.5-4B-GGUF:Q4_K_M
+      cost: 1.0
+    mutations:
+    - diff
+    - rewrite
+    thinking: false
+    temperature: 0.7
+    top_p: 0.8
+    top_k: 20
+    min_p: 0.0
+    presence_penalty: 0.0
+    max_tokens: 1500
+    timeout_s: 600.0
+    retries: 2
+  evolution:
+    islands: 2
+    migration_interval: 40
+    complexity_bins:
+    - 40
+    - 80
+    - 160
+    params_bins:
+    - 2
+    - 3
+    - 4
+    exploit_prob: 0.3
+    selection_lambda: 10.0
+    inspirations: 2
+    max_param_variants: 6
+    reflection_interval: 25
+    max_lessons_in_prompt: 3
+  run:
+    max_candidates: 500
+    max_hours: 10.0
+    parallel: 2
+    seed: 0
+  eval:
+    workers: 4
+    memory_mb: 2048
+  tracking:
+    mlflow: false
+  tasks:
+    cvrp_construct:
+      per_instance_cpu_s: 10
+    pyvrp_accept:
+      iterations: 1000
+      smoke_iterations: 200
+      train_seeds:
+      - 1
+      val_seeds:
+      - 2
+      test_seeds:
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      per_instance_cpu_s: 60

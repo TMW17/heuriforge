@@ -1,0 +1,34 @@
+{
+  "task": "cvrp_construct",
+  "dataset": "cvrplib_x",
+  "provider": "server",
+  "candidates": 500,
+  "statuses": {
+    "edit_failed": 23,
+    "evaluated": 341,
+    "failed_smoke": 115,
+    "llm_error": 6,
+    "rejected_duplicate": 10,
+    "rejected_static": 5
+  },
+  "errors": {
+    "duplicate": 10,
+    "edit_failed": 23,
+    "invalid_output": 6,
+    "llm_error": 6,
+    "runtime_error": 109,
+    "syntax_error": 5
+  },
+  "initial_train_gap": 31.53377624207758,
+  "initial_val_gap": 29.694871006558337,
+  "best_train_gap": 20.408635253195424,
+  "champion_id": 510,
+  "champion_train_gap": 20.408635253195424,
+  "champion_val_gap": 18.97997819289703,
+  "llm_seconds": 7340.6,
+  "eval_seconds": 108.0,
+  "tokens": 996314,
+  "prompt_cache_hit_rate": 0.521,
+  "lessons": 20,
+  "stop_reason": "reached max_candidates (500)"
+}

@@ -1,0 +1,33 @@
+{
+  "task": "pyvrp_accept",
+  "dataset": "cvrplib_x",
+  "provider": "server",
+  "candidates": 500,
+  "statuses": {
+    "edit_failed": 12,
+    "evaluated": 433,
+    "failed_smoke": 21,
+    "failed_train": 1,
+    "rejected_duplicate": 18,
+    "rejected_static": 15
+  },
+  "errors": {
+    "duplicate": 18,
+    "edit_failed": 12,
+    "invalid_output": 1,
+    "runtime_error": 21,
+    "syntax_error": 15
+  },
+  "initial_train_gap": 2.7472195650927693,
+  "initial_val_gap": 2.834187934406188,
+  "best_train_gap": 1.5189146848088249,
+  "champion_id": 471,
+  "champion_train_gap": 1.5189146848088249,
+  "champion_val_gap": 1.4652891093041809,
+  "llm_seconds": 5944.3,
+  "eval_seconds": 1426.5,
+  "tokens": 911901,
+  "prompt_cache_hit_rate": 0.617,
+  "lessons": 20,
+  "stop_reason": "reached max_candidates (500)"
+}

@@ -21,20 +21,63 @@ a **sealed** test split, with paired statistics.
 
 ## Results
 
-> **Pending.** Each of the four configurations is evolved three times (search seeds 0, 1
-> and 2) on a MacBook Pro (Apple Silicon, 16 GB); a run with the model takes one to two
-> hours. The test split stays sealed until all twelve runs are finished. This section is
-> then filled in from the sealed tests (`make table`), and the full report (charts,
-> champion code, lineage, audit) is published on GitHub Pages.
+Each of the four configurations was evolved three times (search seeds 0, 1 and 2) on a
+MacBook Pro (Apple Silicon, 16 GB), 500 candidates per run. The test split stayed sealed
+until all twelve runs had finished; then each run's champion was scored once on it.
+Full report (charts, champion code, lineage, audit):
+[tmw17.github.io/heuriforge](https://tmw17.github.io/heuriforge/).
 
 | Task | Starting point | No-LLM baseline | LLM | LLM vs no-LLM (per test item) |
 |---|---|---|---|---|
-| 1 · Constructive heuristic | – | – | – | – |
-| 2 · PyVRP acceptance rule | – | – | – | – |
+| 1 · Constructive heuristic | 24.62% | 21.83% ± 2.15 (3 runs) | 17.92% ± 1.80 (3 runs) | -3.91 pts [-5.54, -2.28], p = 0.00021, A12 = 0.62 |
+| 2 · PyVRP acceptance rule | 2.72% | 1.78% ± 0.10 (3 runs) | 1.76% ± 0.18 (3 runs) | -0.03 pts [-0.11, +0.06], p = 0.51, A12 = 0.52 |
 
 *Mean gap (%) to the best-known solutions on the sealed test items (Task 1: 20 instances;
 Task 2: 20 instances × 5 seeds), as mean ± standard deviation over the three runs of each
-configuration.*
+configuration. Last column: the champions' gaps are averaged over the runs of each kind,
+item by item, then compared: mean difference with a 95% bootstrap confidence interval,
+two-sided Wilcoxon signed-rank p-value, and Vargha-Delaney A12 (the probability that the
+LLM side does better on an item; 0.5 = no difference). Negative differences favour the
+LLM. Task 1 reference on the same test instances: Clarke-Wright savings (1964) 6.54%.*
+
+| Run | Seed | Champion's test gap | Champion vs starting point |
+|---|---|---|---|
+| `construct-llm` | 0 | 19.79% | -4.83 pts, p = 0.07 (Holm) |
+| `construct-llm-s1` | 1 | 16.20% | -8.43 pts, p = 0.0027 (Holm) |
+| `construct-llm-s2` | 2 | 17.76% | -6.86 pts, p = 0.0064 (Holm) |
+| `construct-random` | 0 | 19.34% | -5.28 pts, p = 0.053 (Holm) |
+| `construct-random-s1` | 1 | 23.06% | -1.57 pts, p = 0.43 (Holm) |
+| `construct-random-s2` | 2 | 23.08% | -1.54 pts, p = 0.67 (Holm) |
+| `accept-llm` | 0 | 1.88% | -0.85 pts, p = 8.6e-14 (Holm) |
+| `accept-llm-s1` | 1 | 1.84% | -0.88 pts, p = 8.6e-13 (Holm) |
+| `accept-llm-s2` | 2 | 1.55% | -1.17 pts, p = 9.3e-17 (Holm) |
+| `accept-random` | 0 | 1.67% | -1.06 pts, p = 8.8e-15 (Holm) |
+| `accept-random-s1` | 1 | 1.84% | -0.88 pts, p = 2e-13 (Holm) |
+| `accept-random-s2` | 2 | 1.84% | -0.88 pts, p = 2e-13 (Holm) |
+
+What this shows:
+
+- **Task 1: the model helps.** The three model runs improved the starting point by 4.8,
+  8.4 and 6.9 points on the test instances (the first one not significantly, p = 0.07).
+  Averaged over runs, the model's champions beat the no-model champions by 3.9 points
+  (p = 0.0002). Two of the three no-model runs barely moved (about 1.5 points, not
+  significant). The evolved heuristics remain far from Clarke-Wright savings (6.54% on
+  the same instances): a rule that picks one stop at a time cannot express a merge
+  algorithm. The best champion starts each route at a far customer with a small demand
+  and extends it by savings; another one picks the first customer of every route through
+  an accidental division by zero.
+- **Task 2: large gains, but the model adds nothing.** Every champion, with or without
+  the model, cuts PyVRP's gap at 1,000 iterations from 2.72% to 1.55-1.88% (p < 10⁻¹²
+  each), a third smaller on average. The main discovery is to be greedier at this short
+  budget: two no-model runs ended with plain hill climbing ("accept only if not worse"),
+  one mutation away from the starting rule. The model's champions add an early random
+  walk or a small tolerance for worse solutions; on average they do no better (-0.03
+  points, p = 0.51).
+- **Cost.** A run with the model used 1.7 to 3.8 hours of model time (two requests in
+  parallel: about 1 to 2 hours of wall time); a run without it took 3 to 16 minutes.
+- **What small-model code looks like.** 19-30% of the model's Task 1 programs crashed
+  (array-shape errors, undefined names), against 4-5% in Task 2, whose code is scalar
+  logic. The ideas the model states often do not match the code it writes.
 
 Reference points measured with this repository (training / validation instances):
 
